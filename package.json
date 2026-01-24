@@ -1,0 +1,22 @@
+{
+  "name": "testcase",
+  "version": "1.0.0",
+  "description": "Automation walkthrough project",
+  "main": "src/app.ts",
+  "type": "commonjs",
+  "scripts": {
+  "dev": "vite src/mock-app --port 5500",
+  "build-mock": "tsc src/mock-app/scripts.ts --target esnext --skipLibCheck --lib dom,esnext",
+  "run-app": "npx tsx src/app.ts",
+  "test": "npx playwright test"
+},
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.0.0",
+    "dotenv": "^16.4.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "undici-types": "^7.19.0",
+    "vite": "^7.3.1"
+  }
+}
