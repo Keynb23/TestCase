@@ -1,0 +1,18 @@
+Test Case ID: Auto_TC_Student_Profile-002
+Title: Verify Profile functionality
+Description: Automated walkthrough for Student role.
+Preconditions: User is on landing page.
+
+Test Steps:
+Step: Perform Select the student role and click start
+Expected Result: Select the student role and click start succeeds.
+(image: 01-select-role.png)
+
+Step: Perform Enter credentials and click sign in
+Expected Result: Enter credentials and click sign in succeeds.
+(image: 02-login-entry.png)
+
+Step: Perform Maps to the Profile section from the dashboard
+Expected Result: Maps to the Profile section from the dashboard succeeds.
+(image: 04-landed-on-Profile.png)
+

@@ -1,0 +1,18 @@
+Test Case ID: Auto_TC_Teacher_Courses-001
+Title: Verify Courses functionality
+Description: Automated walkthrough for Teacher role.
+Preconditions: User is on landing page.
+
+Test Steps:
+Step: Perform Select the teacher role and click start
+Expected Result: Select the teacher role and click start succeeds.
+(image: 01-select-role.png)
+
+Step: Perform Enter credentials and click sign in
+Expected Result: Enter credentials and click sign in succeeds.
+(image: 02-login-entry.png)
+
+Step: Perform Maps to the Courses section from the dashboard
+Expected Result: Maps to the Courses section from the dashboard succeeds.
+(image: 04-landed-on-Courses.png)
+
