@@ -2,7 +2,8 @@ import { chromium, Page, Locator } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 import readline from 'readline';
-import { ensureDir, takeScreenshot, createDocFile } from './utils';
+import { ensureDir, takeScreenshot } from './utils';
+import OpenAI from 'openai';
 
 // HOW TO UPDATE AND MAINTAIN THIS SCRIPT:
 // 1. To change the target URL: update page.goto('http://localhost:5500')
@@ -15,7 +16,9 @@ import { ensureDir, takeScreenshot, createDocFile } from './utils';
 // 8. addVisualClick/removeVisualClick: creates the red circle indicator seen in screenshots
 // 9. If "Custom" is chosen, the script prompts for a custom feature name used for navigation
 
-// Helper function for terminal input
+// Initialize LLM (Replace with your actual key or environment variable)
+const openai = new OpenAI({ apiKey: 'YOUR_OPENAI_API_KEY' });
+
 const askQuestion = (query: string): Promise<string> => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise(resolve => rl.question(query, (ans) => {
@@ -24,23 +27,37 @@ const askQuestion = (query: string): Promise<string> => {
   }));
 };
 
-// Function to calculate the next available folder number
+// AI Function to write the test documentation
+async function aiNarrate(action: string, feature: string): Promise<string> {
+  const prompt = `Write a professional QA test step and expected result for this action: "${action}" within the "${feature}" feature. 
+  Follow this format exactly:
+  Step: [Description]
+  Expected Result: [Description]`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+    });
+    return response.choices[0].message?.content || "Step/Result could not be generated.";
+  } catch (e) {
+    return `Step: Perform ${action}\nExpected Result: ${action} succeeds.`;
+  }
+}
+
 function getNextFolderName(baseDir: string, role: string, feature: string): string {
   let counter = 1;
   let folderName: string;
   let fullPath: string;
-
   do {
     const paddedId = counter.toString().padStart(3, '0');
     folderName = `Auto_TC_${role}_${feature}-${paddedId}`;
     fullPath = path.join(baseDir, folderName);
     counter++;
   } while (fs.existsSync(fullPath));
-
   return folderName;
 }
 
-// Injects a red circle onto the page for visual tracking
 async function addVisualClick(page: Page, locator: Locator) {
   const box = await locator.boundingBox();
   if (box) {
@@ -50,67 +67,56 @@ async function addVisualClick(page: Page, locator: Locator) {
       const circle = document.createElement('div');
       circle.id = 'playwright-click-circle';
       Object.assign(circle.style, {
-        position: 'fixed',
-        left: `${x - 20}px`,
-        top: `${y - 20}px`,
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        border: '4px solid red',
-        backgroundColor: 'rgba(255, 0, 0, 0.3)',
-        zIndex: '999999',
-        pointerEvents: 'none'
+        position: 'fixed', left: `${x - 20}px`, top: `${y - 20}px`, width: '40px', height: '40px',
+        borderRadius: '50%', border: '4px solid red', backgroundColor: 'rgba(255, 0, 0, 0.3)',
+        zIndex: '999999', pointerEvents: 'none'
       });
       document.body.appendChild(circle);
     }, { x, y });
   }
 }
 
-// Removes the red circle from the page
 async function removeVisualClick(page: Page) {
   await page.evaluate(() => document.getElementById('playwright-click-circle')?.remove());
 }
 
-// Main execution function
 async function run() {
-  // Prompt user for role and initial feature choice
   const rawRole = await askQuestion('Select Role (student/teacher/parent): ');
   let rawFeature = await askQuestion('Select Feature (Profile/Courses/Dashboard/Settings or type "Custom"): ');
 
-  // Handle custom feature input
   if (rawFeature.toLowerCase() === 'custom') {
     rawFeature = await askQuestion('Enter the custom feature name to test: ');
   }
 
-  // Standardize naming conventions for folders
   const roleCap = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const featureCap = rawFeature.charAt(0).toUpperCase() + rawFeature.slice(1).toLowerCase();
-
-  // Create organized directory structure: /TestCases/WalkThru/Teacher/Profile
   const featureBaseDir = path.join(process.cwd(), 'TestCases', 'WalkThru', roleCap, featureCap);
   ensureDir(featureBaseDir);
 
-  // Generate unique folder name and path inside the specific feature folder
   const folderName = getNextFolderName(featureBaseDir, roleCap, featureCap);
   const testRunDir = path.join(featureBaseDir, folderName);
+  const docPath = path.join(testRunDir, `${folderName}.txt`);
 
-  // Log start and create test directory and doc file
-  console.log(`Starting Test: ${folderName}`);
   ensureDir(testRunDir);
-  createDocFile(testRunDir, folderName);
 
-  // Launch browser and open new page
+  // --- INITIAL DOC HEADER ---
+  const header = `Test Case ID: ${folderName}\nTitle: Verify ${featureCap} functionality\nDescription: Automated walkthrough for ${roleCap} role.\nPreconditions: User is on landing page.\n\nTest Steps:\n`;
+  fs.writeFileSync(docPath, header);
+
   const browser = await chromium.launch({ headless: false, slowMo: 800 });
   const context = await browser.newContext();
   const page = await context.newPage();
-
-  // Navigate to local application
   await page.goto('http://localhost:5500');
 
   // Step 1: Interface selection
   const radio = page.locator(`input[value="${rawRole.toLowerCase()}"]`);
   await radio.check();
   const startBtn = page.locator('#start-btn');
+  
+  // DOCUMENT & SCREENSHOT
+  const step1Text = await aiNarrate(`Select the ${rawRole} role and click start`, featureCap);
+  fs.appendFileSync(docPath, `${step1Text}\n(image: 01-select-role.png)\n\n`);
+  
   await addVisualClick(page, startBtn);
   await takeScreenshot(page, testRunDir, '01-select-role');
   await startBtn.click();
@@ -121,32 +127,33 @@ async function run() {
   await page.fill('input[placeholder="Username"]', 'test-user');
   await page.fill('input[placeholder="Password"]', 'password123');
   const signInBtn = page.locator('#login-submit');
+
+  // DOCUMENT & SCREENSHOT
+  const step2Text = await aiNarrate(`Enter credentials and click sign in`, featureCap);
+  fs.appendFileSync(docPath, `${step2Text}\n(image: 02-login-entry.png)\n\n`);
+
   await addVisualClick(page, signInBtn);
   await takeScreenshot(page, testRunDir, '02-login-entry');
   await signInBtn.click();
   await removeVisualClick(page);
 
-  // Step 3: Navigation based on user prompt
+  // Step 3: Navigation
   await page.waitForSelector('#dashboard:not(.hidden)');
   const targetLink = page.locator('nav a', { hasText: new RegExp(`^${featureCap}$`, 'i') });
 
-  // Check if the link exists before clicking
   if (await targetLink.count() > 0) {
+    const step3Text = await aiNarrate(`Maps to the ${featureCap} section from the dashboard`, featureCap);
+    fs.appendFileSync(docPath, `${step3Text}\n(image: 04-landed-on-${featureCap}.png)\n\n`);
+
     await addVisualClick(page, targetLink);
     await takeScreenshot(page, testRunDir, `03-pre-nav-to-${featureCap}`);
     await targetLink.click();
     await removeVisualClick(page);
     await takeScreenshot(page, testRunDir, `04-landed-on-${featureCap}`);
-    console.log(`Successfully navigated to ${featureCap}`);
-  } else {
-    console.log(`Warning: Navigation link for "${featureCap}" not found.`);
-    await takeScreenshot(page, testRunDir, '03-dashboard-fallback');
   }
 
-  // Close browser session
   console.log(`Walkthrough complete. Results saved to: ${testRunDir}`);
   await browser.close();
 }
 
-// Error handling for the run function
 run().catch(console.error);
