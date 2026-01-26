@@ -6,17 +6,17 @@ import { ensureDir, takeScreenshot } from './utils';
 import OpenAI from 'openai';
 
 // HOW TO UPDATE AND MAINTAIN THIS SCRIPT:
-// 1. To change the target URL: update page.goto('http://localhost:5500')
-// 2. To change login credentials: update the strings in page.fill() for Username and Password
+// 1. To change the target URL: update page.goto('https://testserv6.acellus.com/sign-in')
+// 2. Credentials: Student (Swamp1/Gizzard), Teacher/Parent (32frog)
 // 3. To change where files are saved: update the path.join(process.cwd(), 'TestCases'...) logic
 // 4. locator.check(): selects a radio button or checkbox
 // 5. locator.click(): performs a mouse click on the element
-// 6. locator.fill(): types text into an input field
+// 6. getByRole('link', { name: '...' }): Finds links by their visible text
 // 7. takeScreenshot(page, dir, name): saves a full-page image to the specific test folder
 // 8. addVisualClick/removeVisualClick: creates the red circle indicator seen in screenshots
 // 9. If "Custom" is chosen, the script prompts for a custom feature name used for navigation
 
-// Initialize LLM (Replace with your actual key or environment variable)
+// Initialize LLM
 const openai = new OpenAI({ apiKey: 'YOUR_OPENAI_API_KEY' });
 
 const askQuestion = (query: string): Promise<string> => {
@@ -27,7 +27,6 @@ const askQuestion = (query: string): Promise<string> => {
   }));
 };
 
-// AI Function to write the test documentation
 async function aiNarrate(action: string, feature: string): Promise<string> {
   const prompt = `Write a professional QA test step and expected result for this action: "${action}" within the "${feature}" feature. 
   Follow this format exactly:
@@ -90,6 +89,15 @@ async function run() {
 
   const roleCap = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
   const featureCap = rawFeature.charAt(0).toUpperCase() + rawFeature.slice(1).toLowerCase();
+  
+  // Credentials and Button Mapping
+  const authMap: Record<string, { user: string, pass: string, btnName: string }> = {
+    student: { user: 'Swamp1', pass: 'Gizzard', btnName: 'Student Sign In' },
+    teacher: { user: '32frog', pass: '', btnName: 'GoldKey Sign In' },
+    parent: { user: '32frog', pass: '', btnName: 'GoldKey Sign In' }
+  };
+  const config = authMap[rawRole.toLowerCase()] || authMap.student;
+
   const featureBaseDir = path.join(process.cwd(), 'TestCases', 'WalkThru', roleCap, featureCap);
   ensureDir(featureBaseDir);
 
@@ -106,39 +114,43 @@ async function run() {
   const browser = await chromium.launch({ headless: false, slowMo: 800 });
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto('http://localhost:5500');
+  await page.goto('https://testserv6.acellus.com/sign-in');
 
-  // Step 1: Interface selection
-  const radio = page.locator(`input[value="${rawRole.toLowerCase()}"]`);
-  await radio.check();
-  const startBtn = page.locator('#start-btn');
+  // Step 1: Select Sign In Type (Home Screen)
+  const entryBtn = page.getByRole('link', { name: config.btnName });
   
   // DOCUMENT & SCREENSHOT
-  const step1Text = await aiNarrate(`Select the ${rawRole} role and click start`, featureCap);
-  fs.appendFileSync(docPath, `${step1Text}\n(image: 01-select-role.png)\n\n`);
+  const step1Text = await aiNarrate(`Click the ${config.btnName} button on the Home screen`, featureCap);
+  fs.appendFileSync(docPath, `${step1Text}\n(image: 01-home-selection.png)\n\n`);
   
-  await addVisualClick(page, startBtn);
-  await takeScreenshot(page, testRunDir, '01-select-role');
-  await startBtn.click();
+  await addVisualClick(page, entryBtn);
+  await takeScreenshot(page, testRunDir, '01-home-selection');
+  await entryBtn.click();
   await removeVisualClick(page);
 
   // Step 2: Login process
-  await page.waitForSelector('#login-page:not(.hidden)');
-  await page.fill('input[placeholder="Username"]', 'test-user');
-  await page.fill('input[placeholder="Password"]', 'password123');
+  await page.waitForSelector('input[placeholder="Username"]');
+  await page.fill('input[placeholder="Username"]', config.user);
+  if (config.pass) {
+    await page.fill('input[placeholder="Password"]', config.pass);
+  }
+  
   const signInBtn = page.locator('#login-submit');
 
   // DOCUMENT & SCREENSHOT
-  const step2Text = await aiNarrate(`Enter credentials and click sign in`, featureCap);
+  const step2Text = await aiNarrate(`Enter credentials for ${roleCap} and click sign in`, featureCap);
   fs.appendFileSync(docPath, `${step2Text}\n(image: 02-login-entry.png)\n\n`);
 
   await addVisualClick(page, signInBtn);
   await takeScreenshot(page, testRunDir, '02-login-entry');
   await signInBtn.click();
   await removeVisualClick(page);
+// delete this comment
+
 
   // Step 3: Navigation
-  await page.waitForSelector('#dashboard:not(.hidden)');
+  // Adjusted to wait for a dashboard element or specific landing indicator
+  await page.waitForTimeout(2000); 
   const targetLink = page.locator('nav a', { hasText: new RegExp(`^${featureCap}$`, 'i') });
 
   if (await targetLink.count() > 0) {
@@ -156,4 +168,4 @@ async function run() {
   await browser.close();
 }
 
-run().catch(console.error);
+run().catch(console.error); 
