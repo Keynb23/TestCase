@@ -44,13 +44,13 @@ async function aiNarrate(action: string, feature: string): Promise<string> {
   }
 }
 
-function getNextFolderName(baseDir: string, role: string, feature: string): string {
+function getNextFolderName(baseDir: string, baseName: string): string {
   let counter = 1;
   let folderName: string;
   let fullPath: string;
   do {
     const paddedId = counter.toString().padStart(3, '0');
-    folderName = `Auto_TC_${role}_${feature}-${paddedId}`;
+    folderName = `${baseName}-${paddedId}`;
     fullPath = path.join(baseDir, folderName);
     counter++;
   } while (fs.existsSync(fullPath));
@@ -80,53 +80,50 @@ async function removeVisualClick(page: Page) {
 }
 
 async function run() {
-  const rawRole = await askQuestion('Select Role (student/teacher/parent): ');
-  let rawFeature = await askQuestion('Select Feature (Profile/Courses/Dashboard/Settings or type "Custom"): ');
+  // Ask for a single base test-case name; we'll append -001, -002...
+  const baseNameRaw = await askQuestion('Enter base test case name (e.g. TC or Auto_TC_MyFlow): ');
+  const baseName = (baseNameRaw || 'TC').trim();
 
-  if (rawFeature.toLowerCase() === 'custom') {
-    rawFeature = await askQuestion('Enter the custom feature name to test: ');
-  }
-
-  const roleCap = rawRole.charAt(0).toUpperCase() + rawRole.slice(1).toLowerCase();
-  const featureCap = rawFeature.charAt(0).toUpperCase() + rawFeature.slice(1).toLowerCase();
-  
-  // Credentials and Button Mapping
+  // Credentials and Button Mapping (using default student mapping)
   const authMap: Record<string, { user: string, pass: string, btnName: string }> = {
     student: { user: 'Swamp1', pass: 'Gizzard', btnName: 'Student Sign In' },
     teacher: { user: '32frog', pass: '', btnName: 'GoldKey Sign In' },
     parent: { user: '32frog', pass: '', btnName: 'GoldKey Sign In' }
   };
-  const config = authMap[rawRole.toLowerCase()] || authMap.student;
+  const config = authMap.student;
 
-  const featureBaseDir = path.join(process.cwd(), 'TestCases', 'WalkThru', roleCap, featureCap);
+  const featureBaseDir = path.join(process.cwd(), 'TestCases', 'WalkThru', 'Generated');
   ensureDir(featureBaseDir);
 
-  const folderName = getNextFolderName(featureBaseDir, roleCap, featureCap);
+  const folderName = getNextFolderName(featureBaseDir, baseName);
   const testRunDir = path.join(featureBaseDir, folderName);
   const docPath = path.join(testRunDir, `${folderName}.txt`);
 
   ensureDir(testRunDir);
 
   // --- INITIAL DOC HEADER ---
-  const header = `Test Case ID: ${folderName}\nTitle: Verify ${featureCap} functionality\nDescription: Automated walkthrough for ${roleCap} role.\nPreconditions: User is on landing page.\n\nTest Steps:\n`;
+  const header = `TEST CASE: ${folderName}\n\nTEST NAME: ${baseName}\n\nDESCRIPTION: Automated walkthrough.\n\nPRECONDITIONS: User is on landing page.\n\nSTEPS:\n\n`;
   fs.writeFileSync(docPath, header);
 
   const browser = await chromium.launch({ headless: false, slowMo: 800 });
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto('https://testserv6.acellus.com/sign-in');
+  await page.goto('https://testserv4.acellus.com/sign-in');
 
   // Step 1: Select Sign In Type (Home Screen)
   const entryBtn = page.getByRole('link', { name: config.btnName });
   
-  // DOCUMENT & SCREENSHOT
-  const step1Text = await aiNarrate(`Click the ${config.btnName} button on the Home screen`, featureCap);
-  fs.appendFileSync(docPath, `${step1Text}\n(image: 01-home-selection.png)\n\n`);
-  
+  // DOCUMENT & SCREENSHOT (STEP 1)
+  const step1Text = await aiNarrate(`Click the ${config.btnName} button on the Home screen`, baseName);
+  const [step1Line = '', expected1Line = ''] = step1Text.split('\n').map(s => s.replace(/^Step:\s*/i, '').replace(/^Expected Result:\s*/i, ''));
+  fs.appendFileSync(docPath, `STEP 1:\n\n${step1Line}\n\n(e.g.. Click component)\n\n[screenshot: 01-home-selection-before.png]\n\nExpected:\n\n[screenshot: 01-home-selection-after.png]\n\n`);
+
   await addVisualClick(page, entryBtn);
-  await takeScreenshot(page, testRunDir, '01-home-selection');
+  await takeScreenshot(page, testRunDir, '01-home-selection-before');
   await entryBtn.click();
   await removeVisualClick(page);
+  await page.waitForTimeout(500);
+  await takeScreenshot(page, testRunDir, '01-home-selection-after');
 
   // Step 2: Login process
   await page.waitForSelector('input[placeholder="Username"]');
@@ -137,31 +134,45 @@ async function run() {
   
   const signInBtn = page.locator('#login-submit');
 
-  // DOCUMENT & SCREENSHOT
-  const step2Text = await aiNarrate(`Enter credentials for ${roleCap} and click sign in`, featureCap);
-  fs.appendFileSync(docPath, `${step2Text}\n(image: 02-login-entry.png)\n\n`);
+  // DOCUMENT & SCREENSHOT (STEP 2)
+  const step2Text = await aiNarrate(`Enter credentials for sign in and click sign in`, baseName);
+  const [step2Line = '', expected2Line = ''] = step2Text.split('\n').map(s => s.replace(/^Step:\s*/i, '').replace(/^Expected Result:\s*/i, ''));
+  fs.appendFileSync(docPath, `STEP 2:\n\n${step2Line}\n\n(e.g.. Click component)\n\n[screenshot: 02-login-entry-before.png]\n\nExpected:\n\n[screenshot: 02-login-entry-after.png]\n\n`);
 
   await addVisualClick(page, signInBtn);
-  await takeScreenshot(page, testRunDir, '02-login-entry');
+  await takeScreenshot(page, testRunDir, '02-login-entry-before');
   await signInBtn.click();
   await removeVisualClick(page);
+  await page.waitForTimeout(800);
+  await takeScreenshot(page, testRunDir, '02-login-entry-after');
 // delete this comment
 
 
-  // Step 3: Navigation
-  // Adjusted to wait for a dashboard element or specific landing indicator
-  await page.waitForTimeout(2000); 
-  const targetLink = page.locator('nav a', { hasText: new RegExp(`^${featureCap}$`, 'i') });
+  // Step 3: Post-login capture and optional navigation
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    // ensure we capture the state after login
+    await takeScreenshot(page, testRunDir, '02-login-entry-after');
 
-  if (await targetLink.count() > 0) {
-    const step3Text = await aiNarrate(`Maps to the ${featureCap} section from the dashboard`, featureCap);
-    fs.appendFileSync(docPath, `${step3Text}\n(image: 04-landed-on-${featureCap}.png)\n\n`);
+    // attempt to find any navigation link to continue the flow; fall back gracefully
+    const navLinks = page.locator('nav a, a');
+    if (await navLinks.count() > 0) {
+      const first = navLinks.nth(0);
+      if (await first.isVisible()) {
+        const step3Text = await aiNarrate(`Navigate using the first available link after login`, baseName);
+        const [step3Line = ''] = step3Text.split('\n').map(s => s.replace(/^Step:\s*/i, ''));
+        fs.appendFileSync(docPath, `STEP 3:\n\n${step3Line}\n\n(e.g.. Click component)\n\n[screenshot: 03-nav-before.png]\n\nExpected:\n\n[screenshot: 04-nav-after.png]\n\n`);
 
-    await addVisualClick(page, targetLink);
-    await takeScreenshot(page, testRunDir, `03-pre-nav-to-${featureCap}`);
-    await targetLink.click();
-    await removeVisualClick(page);
-    await takeScreenshot(page, testRunDir, `04-landed-on-${featureCap}`);
+        await addVisualClick(page, first);
+        await takeScreenshot(page, testRunDir, '03-nav-before');
+        await first.click();
+        await removeVisualClick(page);
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+        await takeScreenshot(page, testRunDir, '04-nav-after');
+      }
+    }
+  } catch (e) {
+    console.error('Post-login navigation failed (non-fatal):', e);
   }
 
   console.log(`Walkthrough complete. Results saved to: ${testRunDir}`);

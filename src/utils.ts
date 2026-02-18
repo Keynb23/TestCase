@@ -11,12 +11,13 @@ export function ensureDir(dir: string) {
 
 export function createDocFile(dir: string, testName: string) {
   const filePath = path.join(dir, `${testName}.txt`);
-  fs.writeFileSync(filePath, `Test Case Documentation for: ${testName}\nGenerated on: ${new Date().toLocaleString()}`);
+  const header = `TEST CASE: ${testName}\n\nTEST NAME: \n\nDESCRIPTION: \n\nPRECONDITIONS: \n\nSTEPS:\n\n`;
+  fs.writeFileSync(filePath, header);
 }
 
 export async function takeScreenshot(page: Page, dir: string, name: string) {
   ensureDir(dir);
   const filePath = path.join(dir, `${name}.png`);
   await page.screenshot({ path: filePath, fullPage: true });
-  console.log(`📸 Screenshot saved: ${name}.png`);
+  console.log(`📸 Screenshot saved: ${filePath}`);
 }

@@ -1,0 +1,10 @@
+Test Case ID: Auto_TC_Student_Typingtest-001
+Title: Verify Typingtest functionality
+Description: Automated walkthrough for Student role.
+Preconditions: User is on landing page.
+
+Test Steps:
+Step: Perform Click the Student Sign In button on the Home screen
+Expected Result: Click the Student Sign In button on the Home screen succeeds.
+(image: 01-home-selection.png)
+

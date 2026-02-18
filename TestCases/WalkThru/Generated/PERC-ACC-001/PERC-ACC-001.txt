@@ -1,0 +1,22 @@
+TEST CASE: PERC-ACC-001
+
+TEST NAME: PERC-ACC
+
+DESCRIPTION: Automated walkthrough.
+
+PRECONDITIONS: User is on landing page.
+
+STEPS:
+
+STEP 1:
+
+Perform Click the Student Sign In button on the Home screen
+
+(e.g.. Click component)
+
+[screenshot: 01-home-selection-before.png]
+
+Expected:
+
+[screenshot: 01-home-selection-after.png]
+
